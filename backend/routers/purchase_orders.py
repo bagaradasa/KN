@@ -299,12 +299,10 @@ async def _create_po_core(payload: PurchaseOrderCreate, actor: Dict[str, Any], *
     # KN-B15 — satu produk hanya boleh muncul di SATU baris PO: tugas penerimaan dibuat
     # per produk dan `items.$.received_qty` mengunci baris pertama, sehingga baris kembar
     # membuat penerimaan & HPP mendarat di baris yang salah. Ditolak di gerbang masuk.
-    _pids = [it.product_id for it in payload.items]
-    _dups = sorted({p for p in _pids if _pids.count(p) > 1})
-    if _dups:
-        raise HTTPException(status_code=400, detail=(
-            "Produk yang sama muncul di lebih dari satu baris PO — gabungkan kuantitasnya "
-            f"menjadi satu baris: {', '.join(_dups)}"))
+    from services.po_line_guard import duplicate_line_message
+    _dup_msg = duplicate_line_message([it.product_id for it in payload.items])
+    if _dup_msg:
+        raise HTTPException(status_code=400, detail=_dup_msg)
     # Validate warehouse
     # E4.1 — gudang penerimaan PO harus boleh dipakai badan usaha pembeli.
     from services import warehouse_scope_service as whscope

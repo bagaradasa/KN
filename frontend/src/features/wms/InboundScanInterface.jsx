@@ -13,6 +13,8 @@ import { formatQty } from "../../utils/formatters";
 import RollLabelActions from "../../components/RollLabelActions";
 import { kgPerBaseUnit } from "../../utils/uom";
 import ScanLabelStatsCard from "./inbound/ScanLabelStatsCard";
+import { askReason } from "../../services/confirmService";
+import { can } from "../../config/roles";
 
 function MiniBar({ pct, status }) {
   const color = status === 'completed' ? 'bg-[#34C759]' : status === 'escalated' ? 'bg-red-400' : 'bg-[#007AFF]';
@@ -28,6 +30,7 @@ const EMPTY_SCAN = { doc_uom: "", doc_qty: "", batch: "", lot: "", dye_lot: "",
 
 export default function InboundScanInterface({ user, focusPoId = "", onFocusConsumed, onOpenPO }) {
   const [tasks, setTasks] = useState([]);
+  const canOverride = can(user?.permissions, "wms", "approve");
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +38,6 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
   const [filterStatus, setFilterStatus] = useState("all");
 
   const [cameraActive, setCameraActive] = useState(false);
-  const [scanValue, setScanValue] = useState("");
   const [scanData, setScanData] = useState(EMPTY_SCAN);
 
   const [showEscalateModal, setShowEscalateModal] = useState(false);
@@ -118,7 +120,6 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
     stopCamera();
     setSelectedTask(task);
     setScanData({ ...EMPTY_SCAN, doc_uom: "" });
-    setScanValue("");
   };
 
   const startCamera = async () => {
@@ -128,7 +129,8 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
       const el = document.getElementById("inbound-video-compact");
       if (!el) return;
       await reader.decodeFromVideoDevice(null, el, (result) => {
-        if (result) { setScanValue(result.getText()); stopCamera(); }
+        // GRN Fase 0.9 — hasil kamera masuk ke kolom Roll ID (dulu disimpan di state yang tak pernah dikirim).
+        if (result) { setScanData((prev) => ({ ...prev, roll_id: result.getText() })); stopCamera(); }
       });
       setCameraActive(true);
     } catch { setError("Gagal membuka kamera. Beri izin kamera pada peramban, atau ketik kode roll secara manual."); }
@@ -140,7 +142,7 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
     setCameraActive(false);
   };
 
-  const handleScanReceive = async () => {
+  const handleScanReceive = async (overrideReason = "") => {
     if (!selectedTask) return;
     const qty = Number(scanData.doc_qty);
     if (!Number.isFinite(qty) || qty <= 0) {
@@ -156,11 +158,11 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
         doc_uom: docUom, doc_qty: qty,
         batch: scanData.batch, lot: scanData.lot, dye_lot: scanData.dye_lot,
         grade: scanData.grade, roll_id: scanData.roll_id, bin_id: scanData.bin_id,
+        ...(overrideReason ? { variance_override_reason: overrideReason } : {}),
       });
       setTasks(prev => prev.map(t => t.id === selectedTask.id ? res.data : t));
       setSelectedTask(res.data);
       setScanData({ ...EMPTY_SCAN, doc_uom: docUom });
-      setScanValue("");
       uom.clearPreview();
       uom.reload();
       setError("");
@@ -214,7 +216,7 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
     setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, ...t } : x)));
   };
 
-  const submitComplete = async () => {
+  const submitComplete = async (overrideReason = "") => {
     if (!selectedTask) return;
     setSubmitting(true);
     try {
@@ -230,6 +232,7 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
         supplier_lot: lotFields.supplier_lot || "",
         lot_number: lotFields.lot_number || "",
         shade_ref: lotFields.shade_ref || "",
+        ...(overrideReason ? { variance_override_reason: overrideReason } : {}),
       });
       setLotResult({ lots: res.data?.lots || [], warnings: res.data?.lot_warnings || [], rolls: res.data?.created_rolls || [], task: selectedTask });
       setShowGRModal(false);
@@ -240,7 +243,18 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
       setError("");
       notifySuccess("Barang masuk gudang",
         `${(res.data?.lots || []).length || 1} lot terbentuk dari ${rolls.length} roll.`);
-    } catch (e) { setError(apiErrorText(e, "Gagal menyelesaikan penerimaan.")); }
+    } catch (e) {
+      const msg = apiErrorText(e, "Gagal menyelesaikan penerimaan.");
+      // GRN Fase 0.6 — selisih konversi memblokir: pemegang wms.approve boleh lanjut dengan alasan.
+      if (!overrideReason && canOverride && e.response?.status === 400 && /alasan override/i.test(msg)) {
+        setSubmitting(false);
+        const reason = await askReason({ title: "Lanjutkan walau selisih di luar batas?", message: msg,
+          reasonLabel: "Alasan override (tercatat di audit)", confirmLabel: "Lanjutkan" });
+        if (reason) submitComplete(reason);
+        return;
+      }
+      setError(msg);
+    }
     finally { setSubmitting(false); }
   };
 
@@ -394,7 +408,7 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
             setScanData={setScanData}
             uom={uom}
             cameraActive={cameraActive}
-            scanValue={scanValue}
+            canOverride={canOverride}
             onStartCamera={startCamera}
             onStopCamera={stopCamera}
             onClose={() => { stopCamera(); setSelectedTask(null); }}
@@ -452,7 +466,8 @@ export default function InboundScanInterface({ user, focusPoId = "", onFocusCons
           product={products[selectedTask.product_id]}
           rolls={grRolls}
           setRolls={setGrRolls}
-          onSubmit={submitComplete}
+          onSubmit={() => submitComplete()}
+          tolPct={uom.options?.line_qty_tolerance_pct ?? 2}
           onClose={() => setShowGRModal(false)}
           submitting={submitting}
           lotFields={lotFields}

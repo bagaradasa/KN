@@ -6,7 +6,7 @@ from db import db
 # FASE U — `qty_rolls` di sini DIHITUNG dari roll yang benar-benar lahir (lihat
 # `scan-receive`: `qty_rolls = qty_rolls + _rolls_made`), bukan dari helper konversi,
 # jadi `dual_qty_service` tidak dipakai router ini (importnya dulu menggantung).
-from dependencies import require_permission, audit
+from dependencies import require_permission, audit, has_permission
 from entity_scope import entity_ctx, resolve_list_scope, assert_entity_access
 from core_utils import new_id, now_iso, safe_doc, DEFAULT_ENTITY_ID
 from schemas import POReceiveItem, GRCompletePayload
@@ -38,6 +38,13 @@ async def list_inbound_tasks(request: Request, status: str = None) -> List[Dict[
             task["supplier_name"] = po.get("supplier_name", "")
     
     return tasks
+
+
+def _grade_or_400(raw: Any, default: str = "A") -> str:
+    try:
+        return _dr.require_grade(raw, default)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/inbound/tasks/{task_id}/scan-receive")
@@ -76,8 +83,10 @@ async def scan_receive_item(
     # supplier (conv_factor) → registry konversi global. Jejak konversi WAJIB disimpan
     # (D-07). `preflight_scan` sekaligus menegakkan toleransi kedatangan Fase 3.
     from services import receiving_uom_service as _rus
+    payload.grade = _grade_or_400(payload.grade, "")
     try:
-        _pf = await _rus.preflight_scan(task, payload)
+        _pf = await _rus.preflight_scan(task, payload,
+                                        can_override=await has_permission(actor, "wms", "approve"))
     except _rus.ReceivingUomError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     effective_qty, _ruom_trail = _pf["qty"], _pf["trail"]
@@ -96,6 +105,7 @@ async def scan_receive_item(
         "bin_id": payload.bin_id,
         "actor": actor["name"],
         "timestamp": now_iso(),
+        **({"over_override_reason": _pf["override_reason"]} if _pf.get("override_reason") else {}),
         # FASE F-1 — jejak konversi satuan supplier (kosong bila input satuan KN)
         **({"uom_trail": _ruom_trail} if _ruom_trail else {}),
     }
@@ -297,6 +307,10 @@ async def complete_inbound_receiving(
     default (dari task/scan atau fallback lot/A). Pemanggilan TANPA body tetap jalan.
     """
     actor = await require_permission(request, "wms", "update")
+    if payload:  # GRN Fase 0.4 — grade lama (A+/C) dinormalisasi ke SSOT; tak dikenal → 400
+        payload.grade = _grade_or_400(payload.grade, "")
+        for _r in payload.rolls or []:
+            _r.grade = _grade_or_400(_r.grade, "")
     
     task = safe_doc(await db.wms_tasks.find_one({"id": task_id}, {"_id": 0}))
     if not task:
@@ -349,7 +363,7 @@ async def complete_inbound_receiving(
         lot = task.get("lot") or f"LOT-{task.get('po_number', task_id)}"
         # P0-4 — dye_lot & grade aktual (default backward-compatible: dye_lot=lot, grade=A)
         default_dye_lot = (payload.dye_lot if payload else "") or task.get("dye_lot") or lot
-        default_grade = (payload.grade if payload else "") or task.get("grade") or "A"
+        default_grade = (payload.grade if payload else "") or _grade_or_400(task.get("grade"), "A")
 
         # Fase 8 (Catch-weight) — roll length dlm BASE unit (meter) + weight_kg AKTUAL.
         product_doc = safe_doc(await db.products.find_one({"id": task["product_id"]}, {"_id": 0})) or {}
@@ -373,7 +387,7 @@ async def complete_inbound_receiving(
                     "length_base": round(float(r.get("length_initial") or 0), 2),
                     "weight_kg": round(float(r.get("weight_kg") or 0), 3),
                     "dye_lot": r.get("dye_lot") or r.get("supplier_lot") or default_dye_lot,
-                    "grade": r.get("grade") or default_grade,
+                    "grade": _grade_or_400(r.get("grade"), default_grade),
                     "defects": list(r.get("defects") or []),
                 })
             final_qty = round(sum(float(r.get("actual_task_qty") if r.get("actual_task_qty") is not None
@@ -387,7 +401,11 @@ async def complete_inbound_receiving(
             total_task = round(sum(m["task_qty"] for m in measures), 2)
             if total_task <= 0:
                 raise HTTPException(status_code=400, detail="Total ukuran roll harus lebih dari 0.")
-            tol_line = max(0.5, round(final_qty * 0.02, 2))
+            # GRN Fase 0.3 — toleransi Σ roll vs qty diterima dari konfigurasi (dulu 2% tertulis mati).
+            from services.config_resolver import value_of
+            _tol_pct = float(await value_of("receiving.line_qty_tolerance_pct",
+                                            {"entity_id": task.get("entity_id") or ""}) or 0)
+            tol_line = max(0.5, round(final_qty * _tol_pct / 100.0, 2))
             if abs(total_task - final_qty) > tol_line:
                 raise HTTPException(
                     status_code=400,
@@ -455,7 +473,8 @@ async def complete_inbound_receiving(
             _variance["downgraded_from"] = "block"
             _variance["message"] += " (mode scan label: dicatat untuk tinjauan, tidak memblokir)"
         if _variance.get("level") == "block":
-            if not (bool(_uom_settings.get("allow_override")) and _ovr):
+            if not (bool(_uom_settings.get("allow_override")) and _ovr
+                    and await has_permission(actor, "wms", "approve")):
                 raise HTTPException(status_code=400, detail=(
                     f"{_variance['message']} Perbaiki data, atau lanjutkan dengan mengisi "
                     "alasan override (butuh izin & tercatat di audit)."))

@@ -91,11 +91,15 @@ async def permission_matrix() -> Dict[str, Dict[str, List[str]]]:
     return record.get("matrix", DEFAULT_PERMISSIONS) if record else DEFAULT_PERMISSIONS
 
 
+async def has_permission(user: Dict[str, Any], module: str, action: str) -> bool:
+    """Cek izin tanpa melempar (untuk cabang "boleh override?")."""
+    allowed = (await permission_matrix()).get(user.get("role"), {}).get(module, [])
+    return action in allowed or "*" in allowed
+
+
 async def require_permission(request: Request, module: str, action: str) -> Dict[str, Any]:
     user = await current_user(request)
-    matrix = await permission_matrix()
-    allowed = matrix.get(user.get("role"), {}).get(module, [])
-    if action in allowed or "*" in allowed:
+    if await has_permission(user, module, action):
         return user
     raise HTTPException(status_code=403, detail=f"Permission ditolak: {module}.{action}")
 

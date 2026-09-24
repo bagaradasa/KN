@@ -159,7 +159,14 @@ async def receive_order_step(mko_id: str, payload: MakloonReceiveIn, request: Re
     actor = await require_permission(request, "makloon_order", "receive")
     ctx = await entity_ctx(request)
     await _assert_access(mko_id, ctx)
-    order = await receive_step(mko_id, payload.step_seq, payload.model_dump(),
+    data = payload.model_dump()
+    import domain_registry as _dr
+    try:  # GRN Fase 0.4 — grade roll makloon mengikuti SSOT (A+→A, C→BS; tak dikenal → 400)
+        for _r in data.get("rolls") or []:
+            _r["grade"] = _dr.require_grade(_r.get("grade"), "A")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    order = await receive_step(mko_id, payload.step_seq, data,
                                actor_name=actor.get("name", ""))
     await audit(actor.get("name", ""), "makloon_order_received", "makloon_order", mko_id,
                 {"step_seq": payload.step_seq})

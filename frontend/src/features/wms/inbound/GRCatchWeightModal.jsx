@@ -3,13 +3,7 @@ import KNSelect from "../../../components/KNSelect";
 import { rollsText } from "../../../components/QtyDual";   // FASE U — satu aturan teks roll
 import { formatQty } from "../inventory/inventoryConstants";
 import { kgPerBaseUnit } from "../../../utils/uom";
-
-const GRADE_OPTIONS = [
-  { value: "A", label: "Grade A" },
-  { value: "B", label: "Grade B" },
-  { value: "C", label: "Grade C" },
-  { value: "reject", label: "Reject" },
-];
+import useDomainEnums from "../../../hooks/useDomainEnums";
 
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 // FASE B/C — berat per 1 BASE UNIT produk (yard ≠ meter!). Memakai util bersama agar
@@ -25,7 +19,8 @@ function kgPerUnit(p) {
  * Validasi Σ kontribusi (berat utk PO per-kg, panjang utk PO per-meter) ≈ qty diterima.
  */
 export default function GRCatchWeightModal({ task, product, rolls, setRolls, onSubmit, onClose,
-                                            submitting, lotFields, setLotFields, lotSettings }) {
+                                            submitting, lotFields, setLotFields, lotSettings, tolPct = 2 }) {
+  const { options } = useDomainEnums();   // GRN Fase 0.4 — grade dari SSOT
   if (!task) return null;
   const isKg = (task.unit || "").toLowerCase() === "kg";
   const kgm = kgPerUnit(product);
@@ -34,7 +29,8 @@ export default function GRCatchWeightModal({ task, product, rolls, setRolls, onS
   const sumWt = r2(rolls.reduce((a, x) => a + (Number(x.weight) || 0), 0));
   const expected = Number(task.received_qty) || 0;
   const taskTotal = isKg ? sumWt : sumLen;
-  const tol = Math.max(0.5, r2(expected * 0.02));
+  // GRN Fase 0.3 — toleransi dari konfigurasi `receiving.line_qty_tolerance_pct` (via uom-options).
+  const tol = Math.max(0.5, r2(expected * (Number(tolPct) || 0) / 100));
   const matched = Math.abs(taskTotal - expected) <= tol;
   // FASE C (D-10/D-27) — kelengkapan lot: wajib di form, penegakan server warn/block
   const lf = lotFields || { supplier_lot: "", lot_number: "", shade_ref: "" };
@@ -180,7 +176,7 @@ export default function GRCatchWeightModal({ task, product, rolls, setRolls, onS
                 onChange={(e) => setField(i, "dye_lot", e.target.value)}
                 className={`border rounded px-2 py-1 text-[12px] ${!(row.dye_lot || "").trim() && (lotSettings?.require_dye_lot !== false) ? "border-amber-400 bg-amber-50" : "border-[#E5E5EA]"}`} />
               <KNSelect className="border border-[#E5E5EA] rounded px-1 py-1 text-[12px] bg-white text-left"
-                value={row.grade} onValueChange={(v) => setField(i, "grade", v)} options={GRADE_OPTIONS} />
+                value={row.grade} onValueChange={(v) => setField(i, "grade", v)} options={options("grade")} />
               <button data-testid={`gr-roll-remove-${i}`} onClick={() => setRolls(rolls.filter((_, idx) => idx !== i))}
                 disabled={rolls.length <= 1} className="text-red-400 hover:text-red-600 disabled:opacity-30 justify-self-center">
                 <X size={14} />

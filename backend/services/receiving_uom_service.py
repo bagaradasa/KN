@@ -310,6 +310,11 @@ async def to_doc_uom(task: Dict[str, Any], task_qty: Any, doc_uom: str,
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. OPSI SATUAN UNTUK FE (F1-04)
 # ═══════════════════════════════════════════════════════════════════════════
+async def _value_of(key: str, ctx: Dict[str, Any]) -> Any:
+    from services.config_resolver import value_of
+    return await value_of(key, ctx)
+
+
 async def uom_options(task: Dict[str, Any]) -> Dict[str, Any]:
     """Satuan yang sah + faktor + hint + sisa dalam dua satuan untuk 1 inbound task."""
     c = await task_context(task)
@@ -370,6 +375,8 @@ async def uom_options(task: Dict[str, Any]) -> Dict[str, Any]:
         "product_name": task.get("product_name") or product.get("name", ""),
         "task_uom": task_uom, "base_uom": base_uom,
         "expected_qty": round(parse_decimal(task.get("expected_qty") or 0), 2),
+        "line_qty_tolerance_pct": float(await _value_of("receiving.line_qty_tolerance_pct",
+                                                         {"entity_id": task.get("entity_id") or ""}) or 0),
         "received_qty": round(parse_decimal(task.get("received_qty") or 0), 2),
         "remaining_qty": rem,
         "supplier": {"id": c["po"].get("supplier_id", ""),
@@ -466,7 +473,7 @@ async def receive_tolerance_pct(task: Dict[str, Any]) -> float:
     return float((st.get("purchasing", {}) or {}).get("receive_tolerance_percent", 2.0) or 0)
 
 
-async def preflight_scan(task: Dict[str, Any], payload: Any) -> Dict[str, Any]:
+async def preflight_scan(task: Dict[str, Any], payload: Any, *, can_override: bool = False) -> Dict[str, Any]:
     """SEMUA pemeriksaan sebelum menulis: konversi satuan (F1-01/02) + toleransi kedatangan.
 
     Router cukup memanggil ini lalu menyimpan hasilnya — sehingga aturan bisnis tinggal di
@@ -493,7 +500,9 @@ async def preflight_scan(task: Dict[str, Any], payload: Any) -> Dict[str, Any]:
         else:
             over_msg = (f"Qty terima ({new_received:g}) melebihi toleransi +{tol_pct:g}% dari PO "
                         f"({expected:g}, maks {max_qty:g}).")
-        if block:
+        # GRN Fase 0.6 — pemegang `wms.approve` boleh melanjutkan dengan alasan (tercatat audit).
+        override_reason = (getattr(payload, "variance_override_reason", "") or "").strip()
+        if block and not (can_override and override_reason):
             raise ReceivingUomError(
                 over_msg if prep["trail"] else
                 over_msg + " Gunakan Eskalasi untuk penyesuaian manager.")
@@ -502,4 +511,5 @@ async def preflight_scan(task: Dict[str, Any], payload: Any) -> Dict[str, Any]:
             "tolerance_pct": tol_pct, "tolerance_qty": max_qty,
             "variance_pct": var_pct, "within_tolerance": abs(var_pct) <= tol_pct,
             "over_receipt": over, "over_blocked": block,
-            "over_message": over_msg if over else ""}
+            "over_message": over_msg if over else "",
+            "override_reason": override_reason if (over and block) else ""}

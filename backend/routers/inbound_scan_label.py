@@ -29,10 +29,23 @@ def _from_meter(qty_m: float, unit: str) -> float:
     return float(qty_m or 0) / _LEN_FACTOR.get((unit or "meter").lower(), 1.0)
 
 
+def _grade_or_400(raw: Any, default: str = "A") -> str:
+    import domain_registry as _dr
+    try:
+        return _dr.require_grade(raw, default)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _receiving_cfg(key: str, entity_id: str) -> Any:
+    """GRN Fase 0.2 — kunci `receiving.*` HANYA lewat resolver (dulu `settings["receiving"]`
+    tidak pernah ada di hasil get_effective_settings → selalu nilai bawaan)."""
+    from services.config_resolver import value_of
+    return await value_of(f"receiving.{key}", {"entity_id": entity_id or ""})
+
+
 async def _tolerance_pct(entity_id: str) -> float:
-    from services.config_service import get_effective_settings
-    s = await get_effective_settings(entity_id or None)
-    return float((s.get("receiving", {}) or {}).get("label_variance_tolerance_percent", 2.0) or 0)
+    return float(await _receiving_cfg("label_variance_tolerance_percent", entity_id) or 0)
 
 
 async def _load_task(task_id: str, request: Request, perm: str = "update") -> Dict[str, Any]:
@@ -255,7 +268,7 @@ async def scan_label(task_id: str, payload: ScanLabelIn, request: Request) -> Di
     from services.config_service import get_effective_settings
     settings = await get_effective_settings(owner_entity_id)
     tol_recv = float((settings.get("purchasing", {}) or {}).get("receive_tolerance_percent", 2.0) or 0)
-    block_over = bool((settings.get("receiving", {}) or {}).get("block_over_remaining", True))
+    block_over = bool(await _receiving_cfg("block_over_remaining", owner_entity_id))
     expected = float(task.get("expected_qty") or 0)
     new_received = round(float(task.get("received_qty") or 0) + task_qty, 2)
     over = expected > 0 and new_received > expected * (1 + tol_recv / 100)
@@ -311,7 +324,7 @@ async def scan_label(task_id: str, payload: ScanLabelIn, request: Request) -> Di
 
     # FASE SL — RFID Auto-Tag: EPC lahir bersama roll (best-effort; gagal → petugas tag manual).
     roll_doc["rfid_epc"] = ""
-    if bool((settings.get("receiving", {}) or {}).get("auto_rfid_on_scan", True)):
+    if bool(await _receiving_cfg("auto_rfid_on_scan", owner_entity_id)):
         try:
             from services import rfid_service as _rfid
             _tag = await _rfid.encode_tag(roll_doc["id"], [owner_entity_id], actor_name=actor["name"])
@@ -366,8 +379,8 @@ async def confirm_measure(roll_id: str, payload: ConfirmMeasureIn, request: Requ
     task = await _load_task(roll["grn_task_id"], request)
     if roll.get("status") != "receiving":
         raise HTTPException(status_code=400, detail="Roll sudah masuk stok — ukuran dikoreksi lewat penyesuaian stok.")
-    if payload.grade and payload.grade not in ("A", "A+", "A1", "A2", "B", "C", "BS"):
-        raise HTTPException(status_code=400, detail="Grade tidak dikenal (A, A+, B, C, BS).")
+    if payload.grade:
+        payload.grade = _grade_or_400(payload.grade)
     tol = await _tolerance_pct(roll.get("owner_entity_id") or "")
     base_unit = roll.get("unit") or "meter"
     task_unit = task.get("unit") or base_unit

@@ -10,15 +10,12 @@ import SupplierLabelPatternEditor, { DEFAULT_LABEL_PATTERN } from "../SupplierLa
 import { createSupplierItem, patchSupplierItem } from "./supplierItemsApi";
 import { overlayDismiss } from "@/utils/overlayDismiss";
 
-const GRADE_OPTIONS = [
-  { value: "", label: "— Tidak ditentukan —" },
-  { value: "A", label: "A" }, { value: "A1", label: "A1" }, { value: "A2", label: "A2" },
-  { value: "B", label: "B" }, { value: "BS", label: "BS" },
-];
+import useDomainEnums from "../../../hooks/useDomainEnums";
 
 export default function SupplierItemFormModal({
   editing, suppliers, products, selectedEntity, onClose, onSaved,
 }) {
+  const { options: enumOptions } = useDomainEnums();   // GRN Fase 0.4 — grade dari SSOT
   const isEdit = Boolean(editing?.id);
   const [form, setForm] = useState({
     supplier_id: "", product_id: "", supplier_sku: "", supplier_item_name: "",
@@ -179,7 +176,7 @@ export default function SupplierItemFormModal({
             <label className="text-[11px] font-bold uppercase text-[#6B6B73]">Grade Dijanjikan</label>
             <KNSelect data-testid="supplier-item-grade" className="form-input"
               value={form.expected_grade} onValueChange={(v) => set("expected_grade", v)}
-              placeholder="— Tidak ditentukan —" options={GRADE_OPTIONS} />
+              placeholder="— Tidak ditentukan —" options={enumOptions("grade", [{ value: "", label: "— Tidak ditentukan —" }])} />
           </div>
           <div className="grid gap-1.5">
             <label className="text-[11px] font-bold uppercase text-[#6B6B73]">Barcode</label>

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatQty } from "../../utils/formatters";
 import useProcessTypes from "../../hooks/useProcessTypes";
+import useDomainEnums from "../../hooks/useDomainEnums";
 import { MATERIAL_FLOW_BADGE } from "../../constants/makloonVocab";
 import KNSelect from "../../components/KNSelect";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -445,6 +446,7 @@ function ReceiveModal({ step, warehouses, defaultWh, mkoNumber, busy, onClose, o
   const [docQty, setDocQty] = useState("");
   const [colors, setColors] = useState(String(step.colors || ""));
   const [repeats, setRepeats] = useState(String(step.repeats || ""));
+  const { options: gradeOptions } = useDomainEnums();   // GRN Fase 0.4 — grade dari SSOT
   const [rolls, setRolls] = useState([{ lot: `${step.output_sku || "OUT"}-${mkoNumber}-1`, length: String(step.expected_output_qty || ""), grade: "A", dye_lot: "" }]);
   const [err, setErr] = useState("");
   const whOpts = warehouses.map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }));
@@ -526,7 +528,7 @@ function ReceiveModal({ step, warehouses, defaultWh, mkoNumber, busy, onClose, o
                 <div key={i} className="grid grid-cols-[1.4fr_0.9fr_0.7fr_1fr_auto] items-center gap-1.5">
                   <input data-testid={`mko-recv-roll-lot-${i}`} className="field !py-1.5 text-[11.5px]" placeholder="No. LOT" value={r.lot} onChange={(e) => setRoll(i, "lot", e.target.value)} />
                   <input data-testid={`mko-recv-roll-len-${i}`} type="number" className="field !py-1.5 text-[11.5px]" placeholder="Panjang" value={r.length} onChange={(e) => setRoll(i, "length", e.target.value)} />
-                  <input className="field !py-1.5 text-[11.5px]" placeholder="Grade" value={r.grade} onChange={(e) => setRoll(i, "grade", e.target.value)} />
+                  <KNSelect data-testid={`mko-recv-roll-grade-${i}`} className="field !py-1.5 text-[11.5px] text-left" value={r.grade} onValueChange={(v) => setRoll(i, "grade", v)} options={gradeOptions("grade")} />
                   <input data-testid={`mko-recv-roll-dyelot-${i}`} className="field !py-1.5 text-[11.5px]" placeholder="Dye lot" value={r.dye_lot} onChange={(e) => setRoll(i, "dye_lot", e.target.value)} />
                   <button type="button" className="icon-button text-red-400 hover:text-red-600" disabled={rolls.length <= 1} onClick={() => setRolls((p) => p.filter((_, idx) => idx !== i))}><Trash2 size={13} /></button>
                 </div>

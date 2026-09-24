@@ -179,6 +179,12 @@ async def advance_task(task_id: str, request: Request, expected_status: Optional
     if not task:
         raise HTTPException(status_code=404, detail="Task tidak ditemukan")
     assert_entity_access(task, "wms_tasks", await entity_ctx(request))  # S#074 IDOR
+    # GRN Fase 0.1 — tugas penerimaan hanya boleh maju lewat aksi penerimaan (scan/QC/complete);
+    # `advance` dulu bisa membawa put_away → completed TANPA posting stok/HPP/GL.
+    if task.get("flow_type") == "inbound":
+        raise HTTPException(status_code=409, detail={"code": "USE_RECEIVING_FLOW", "message": (
+            "Tugas penerimaan tidak bisa dimajukan manual. Gunakan alur penerimaan "
+            "(Terima → Selesai) agar stok, HPP, dan jurnal tercatat.")})
     stages = task.get("stages", FLOW_STAGES.get(task["flow_type"], ["created", "done"]))
     status = task["status"]
     # KN-078-WMS-RESURRECTION (P2, INV-STATE-01): anti-resurrection.

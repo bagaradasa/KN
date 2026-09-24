@@ -23,7 +23,8 @@ export function ReprintRollButton({ task }) {
 /** Aksi tugas gudang di mobile (Tahap 2): satu tombol besar per langkah, hasil = ikon + teks. */
 
 export function InboundActions({ task, onDone, onCompleted }) {
-  const [qty, setQty] = useState(String(task.expected_qty ?? task.quantity ?? ""));
+  // GRN Fase 0.5 — kotak qty KOSONG: petugas wajib menghitung, bukan menekan Terima dengan qty PO penuh.
+  const [qty, setQty] = useState("");
   const [lot, setLot] = useState(""); const [dye, setDye] = useState("");
   const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
   const run = async (fn, ok) => { setBusy(true); setMsg(null); try { const r = await fn(); setMsg(r?.queued ? { ok: true, text: "Offline — tersimpan di HP, akan dikirim saat sinyal kembali (tanpa dobel)." } : { ok: true, text: ok }); if (!r?.queued) onDone?.(); } catch (e) { setMsg({ ok: false, text: errText(e, "Gagal.") }); } finally { setBusy(false); } };
@@ -39,10 +40,10 @@ export function InboundActions({ task, onDone, onCompleted }) {
   };
   return (
     <div className="mt-2 space-y-2" data-testid={`mw-inbound-actions-${task.id}`}>
-      {["pending", "receiving", "in_progress"].includes(task.status) && (
+      {["waiting_goods", "pending", "receiving", "in_progress"].includes(task.status) && (
         <div className="flex gap-2">
-          <input type="number" className="flex-1 rounded-lg border p-3 text-lg" value={qty} onChange={(e) => setQty(e.target.value)} data-testid={`mw-receive-qty-${task.id}`} />
-          <button className="primary-button px-4" disabled={busy} onClick={receive} data-testid={`mw-receive-btn-${task.id}`}>Terima</button>
+          <input type="number" inputMode="decimal" className="flex-1 rounded-lg border p-3 text-lg" value={qty} placeholder={`Hitung fisik (${task.unit || "qty"})`} onChange={(e) => setQty(e.target.value)} data-testid={`mw-receive-qty-${task.id}`} />
+          <button className="primary-button px-4" disabled={busy || !(parseFloat(qty) > 0)} onClick={receive} data-testid={`mw-receive-btn-${task.id}`}>Terima</button>
         </div>
       )}
       {["receiving", "qc_check", "in_progress"].includes(task.status) && (

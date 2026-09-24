@@ -7,6 +7,7 @@
  */
 import { AlertTriangle, Camera, CameraOff, CheckCircle, FileText, TrendingUp, X, ScanLine, Keyboard } from "lucide-react";
 import { useState } from "react";
+import { askReason } from "../../../services/confirmService";
 import InboundScanForm from "../InboundScanForm";
 import ReceiveTrailHistory from "./ReceiveTrailHistory";
 import ScanLabelPanel from "./ScanLabelPanel";
@@ -35,7 +36,7 @@ export function TaskBadge({ status }) {
 
 export default function InboundTaskPanel({
   task, scanData, setScanData, uom,
-  cameraActive, scanValue, onStartCamera, onStopCamera,
+  cameraActive, canOverride, onStartCamera, onStopCamera,
   onClose, onScanReceive, onComplete, onEscalate, submitting, onOpenPO, onTaskUpdated,
 }) {
   // FASE SL — mode default = scan label supplier; input manual (lama) tetap tersedia.
@@ -43,6 +44,12 @@ export default function InboundTaskPanel({
   const blocked = uom?.preview?.level === "block";
   const canSubmit = !submitting && Number(scanData.doc_qty) > 0 && !blocked;
   const canComplete = (task.received_qty || 0) >= task.expected_qty || task.status === "qc_check";
+  // GRN Fase 0.6 — pratinjau `block` + pengguna berhak → alasan override dikirim & tercatat di audit.
+  const overrideReceive = async () => {
+    const reason = await askReason({ title: "Terima melebihi batas?", message: uom?.preview?.message || "Penerimaan ini melewati sisa PO + toleransi.",
+      reasonLabel: "Alasan override (tercatat di audit)", confirmLabel: "Terima dengan alasan" });
+    if (reason) onScanReceive(reason);
+  };
   return (
     <div className="overflow-hidden rounded-xl border border-[#EFF0F2] bg-white">
       <div className="flex items-center justify-between border-b border-[#EFF0F2] bg-[#FAFBFC] px-3 py-2">
@@ -160,9 +167,9 @@ export default function InboundTaskPanel({
                               : "border border-[#007AFF]/30 bg-[#F5F7FF] text-[#007AFF]"}`}>
                 {cameraActive ? <><CameraOff size={12} /> Stop Camera</> : <><Camera size={12} /> Camera</>}
               </button>
-              {scanValue && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700">
-                  <CheckCircle size={11} /> {scanValue}
+              {scanData.roll_id && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700" data-testid="inbound-camera-roll-id">
+                  <CheckCircle size={11} /> Roll ID: {scanData.roll_id}
                 </span>
               )}
             </div>
@@ -175,11 +182,18 @@ export default function InboundTaskPanel({
 
             <div className="flex gap-2">
               {mode === "manual" && (
-              <button onClick={onScanReceive} disabled={!canSubmit}
+              <button onClick={() => onScanReceive()} disabled={!canSubmit}
                 data-testid={`scan-task-${task.id}`}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#34C759] px-3 py-2 text-[12px] font-semibold text-white hover:bg-[#28A745] disabled:opacity-50">
                 <CheckCircle size={13} /> Kirim Hasil Scan
               </button>
+              )}
+              {mode === "manual" && blocked && canOverride && (
+                <button onClick={overrideReceive} disabled={submitting || !(Number(scanData.doc_qty) > 0)}
+                  data-testid={`scan-task-override-${task.id}`} title="Pratinjau memblokir — pemegang izin persetujuan gudang boleh melanjutkan dengan alasan"
+                  className="flex items-center gap-1.5 rounded-lg border border-[#B4231F]/40 bg-[#FFF5F5] px-3 py-2 text-[12px] font-semibold text-[#B4231F] hover:bg-[#FFECEC] disabled:opacity-50">
+                  <AlertTriangle size={13} /> Lanjutkan dengan alasan
+                </button>
               )}
               {canComplete && (
                 <button onClick={onComplete} disabled={submitting}

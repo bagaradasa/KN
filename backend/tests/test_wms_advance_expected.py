@@ -29,9 +29,11 @@ def admin():
 def synthetic_task():
     from pymongo import MongoClient
     db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    # GRN Fase 0.1 — tugas inbound kini DITOLAK advance (lihat test_grn_phase0.py); uji CAS
+    # expected_status memakai tugas non-inbound dengan tahapan yang sama.
     base = db.wms_tasks.find_one({"flow_type": "inbound"}, {"_id": 0})
     tid = "wms_test_" + uuid.uuid4().hex[:6]
-    t = {**base, "id": tid, "status": "created",
+    t = {**base, "id": tid, "status": "created", "flow_type": "internal_transfer",
          "stages": ["created", "receiving", "qc_check", "put_away", "completed"],
          "entity_id": "ent_ksc", "refs": []}
     db.wms_tasks.insert_one(dict(t))

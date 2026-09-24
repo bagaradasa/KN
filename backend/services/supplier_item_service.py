@@ -291,7 +291,7 @@ async def lookup(*, supplier_sku: str, supplier_id: str = "",
     """Cari barang KN dari **kode supplier** (kasus nyata: operator hanya pegang kode supplier)."""
     if not (supplier_sku or "").strip():
         raise SupplierItemError("Kode supplier (supplier_sku) wajib diisi untuk pencarian.")
-    flt: Dict[str, Any] = {"supplier_sku": (supplier_sku or "").strip()}
+    flt: Dict[str, Any] = {"supplier_sku": (supplier_sku or "").strip(), "status": "active"}
     if supplier_id:
         flt["supplier_id"] = supplier_id
     if entity_id:

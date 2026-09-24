@@ -6,17 +6,10 @@
 // konversi + jejaknya dihitung server.
 import KNSelect from "../../components/KNSelect";
 import ReceiveUomPanel from "./inbound/ReceiveUomPanel";
-
-// P0-4 — grade tekstil aktual (A | A+ | B | C | BS)
-export const GRADE_OPTIONS = [
-  { value: "A", label: "Grade A" },
-  { value: "A+", label: "Grade A+" },
-  { value: "B", label: "Grade B" },
-  { value: "C", label: "Grade C" },
-  { value: "BS", label: "BS (Barang Sisa)" },
-];
+import useDomainEnums from "../../hooks/useDomainEnums";
 
 export default function InboundScanForm({ scanData, setScanData, uom }) {
+  const { options } = useDomainEnums();   // GRN Fase 0.4 — grade dari SSOT (A, A1, A2, B, BS)
   return (
     <div className="space-y-2">
       {/* FASE F-1 — Qty & satuan (boleh satuan supplier) + pratinjau konversi */}
@@ -56,7 +49,7 @@ export default function InboundScanForm({ scanData, setScanData, uom }) {
             className="w-full rounded-lg border border-[#E5E5EA] bg-white px-2 py-1.5 text-left text-sm"
             value={scanData.grade}
             onValueChange={(v) => setScanData({ ...scanData, grade: v })}
-            options={GRADE_OPTIONS}
+            options={options("grade")}
           />
         </div>
         <div>

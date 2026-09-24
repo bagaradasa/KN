@@ -400,6 +400,10 @@ async def realize_to_po(pr_id: str, *, supplier_id: str, actor: Dict[str, Any],
         if src["supplier_item_id"]:
             used_items.append((src["supplier_item_id"], src["price"]))
 
+    from services.po_line_guard import duplicate_line_message
+    _dup_msg = duplicate_line_message([r["product_id"] for r in raw_items])  # KN-B15 jalur PR→PO
+    if _dup_msg:
+        raise SourcingError(_dup_msg)
     pricing = await compute_order_pricing(raw_items, entity_id, 0.0, cfg_section="purchasing")
     items = pricing["items"]
     total_amount = pricing["total_amount"]

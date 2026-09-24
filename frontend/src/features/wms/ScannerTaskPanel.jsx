@@ -230,7 +230,9 @@ export default function ScannerTaskPanel({ tasks, products, warehouses, orders, 
               <button data-testid="submit-scan-button" className="primary-button" disabled={terminalTask} onClick={submitQueuedScan}>
                 <ScanLine size={14} /> Kirim Hasil Scan
               </button>
-              <button data-testid="advance-wms-task-button" className="secondary-button" disabled={terminalTask} onClick={() => onAdvanceTask(selectedTask?.id, selectedTask?.status)}>
+              <button data-testid="advance-wms-task-button" className="secondary-button" disabled={terminalTask || selectedTask?.flow_type === "inbound"}
+                title={selectedTask?.flow_type === "inbound" ? "Tugas penerimaan maju lewat alur penerimaan (Terima → Selesai)" : undefined}
+                onClick={() => onAdvanceTask(selectedTask?.id, selectedTask?.status)}>
                 <CheckCircle2 size={14} /> Lanjutkan Tahap
               </button>
               {!cameraActive ? (

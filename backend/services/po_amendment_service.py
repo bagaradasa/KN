@@ -123,6 +123,10 @@ async def _build_items(payload, old_items, received_map, supplier_id) -> List[Di
     from services.uom_service import to_base, load_fixed_factors
     from services.supplier_service import resolve_price
 
+    from services.po_line_guard import duplicate_line_message
+    _dup_msg = duplicate_line_message([it.product_id for it in payload.items])  # KN-B15 jalur amandemen
+    if _dup_msg:
+        raise HTTPException(status_code=400, detail=_dup_msg)
     products = {p["id"]: p for p in await db.products.find({}, {"_id": 0}).to_list(1000)}
     factors = await load_fixed_factors()
     new_pids = {it.product_id for it in payload.items}

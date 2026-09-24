@@ -179,6 +179,17 @@ E("receiving.block_over_remaining", group="penerimaan", type="bool", default=Tru
   consumers=("services/receiving_uom_service.py:preflight_scan",),
   related=("purchasing.receive_tolerance_percent",), risk="high")
 
+E("receiving.line_qty_tolerance_pct", group="penerimaan", type="pct", default=2.0,
+  min=0, max=50, step=0.5, unit="%", scopes=G,
+  label="Toleransi total roll vs qty diterima",
+  help="Saat menyelesaikan penerimaan, jumlah panjang/berat semua roll boleh berbeda dari qty "
+       "yang diterima sebesar persen ini (minimal 0,5 satuan).",
+  impact="Makin kecil, petugas harus makin teliti mengukur roll; makin besar, selisih kecil lolos tanpa ditanya.",
+  example="Diterima 1.000 m · toleransi 2% → total roll 980–1.020 m masih diterima",
+  consumers=("routers/inbound_receiving.py:complete_inbound_receiving",
+             "services/receiving_uom_service.py:uom_options"),
+  related=("receiving.label_variance_tolerance_percent",), risk="medium")
+
 E("receiving.label_variance_tolerance_percent", group="penerimaan", type="pct", default=2.0,
   min=0, max=50, step=0.5, unit="%", scopes=G,
   label="Toleransi selisih label supplier vs aktual",

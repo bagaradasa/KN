@@ -5,7 +5,7 @@ import axios, { API } from "../../../services/apiClient";
 import { apiErrorText } from "../../../utils/apiError";
 import { formatQty } from "../../../utils/formatters";
 import { reprintRollLabel } from "../../../utils/rollLabels";
-import { GRADE_OPTIONS } from "../InboundScanForm";
+import useDomainEnums from "../../../hooks/useDomainEnums";
 import KNSelect from "../../../components/KNSelect";
 
 const num = (v) => (v === "" || v === null || v === undefined ? "" : String(v));
@@ -14,6 +14,7 @@ export default function ScannedRollRow({ roll, taskUnit, bins = [], tolerance, r
   const [len, setLen] = useState(num(roll.length_initial));
   const [wt, setWt] = useState(num(roll.weight_kg || ""));
   const [grade, setGrade] = useState(roll.grade || "A");
+  const { items: enumItems } = useDomainEnums();
   const [bin, setBin] = useState(roll.bin_code || "");
   const [epc, setEpc] = useState("");
   const [busy, setBusy] = useState(false);
@@ -127,7 +128,7 @@ export default function ScannedRollRow({ roll, taskUnit, bins = [], tolerance, r
             <span className="text-[9px] font-semibold uppercase text-[#6B6B73]">Grade</span>
             <KNSelect value={grade} onValueChange={setGrade} data-testid={`scanned-roll-grade-${roll.id}`}
               className="w-full rounded-md border border-[#D6D7DC] px-1 py-1 text-[11px]"
-              options={GRADE_OPTIONS.map((g) => ({ value: g.value, label: g.value }))} />
+              options={enumItems("grade").map((g) => ({ value: g.value, label: g.value }))} />
           </label>
           <button type="button" onClick={confirm} disabled={busy} data-testid={`scanned-roll-confirm-${roll.id}`}
             className="rounded-md bg-[#34C759] px-2 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-50">

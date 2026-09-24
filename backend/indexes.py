@@ -64,7 +64,6 @@ INDEX_SPECS: Dict[str, List[IndexKeys]] = {
     ],
     # ── Fase E — Barang Supplier (katalog versi supplier · E-01/E-02/E-03) ─
     "supplier_items": [
-        [("supplier_id", A), ("supplier_sku", A)],
         [("entity_id", A), ("created_at", D)],
         [("supplier_id", A), ("product_id", A), ("status", A)],
         [("product_id", A)],
@@ -411,6 +410,20 @@ async def ensure_performance_indexes() -> dict:
     except Exception as exc:  # noqa: BLE001
         uq_summary["failed"].append("journal_entries.source")
         logger.error("[indexes] UNIK journal_entries(source_type,source_id) GAGAL: %s", exc)
+    try:
+        # GRN Fase 0.7 — (supplier_id, supplier_sku) UNIK: lookup kode supplier tidak boleh ambigu.
+        # Cek duplikat dulu: `python scripts/check_supplier_item_duplicates.py`.
+        si_info = await db.supplier_items.index_information()
+        if "supplier_id_1_supplier_sku_1" in si_info:
+            await db.supplier_items.drop_index("supplier_id_1_supplier_sku_1")
+        await db.supplier_items.create_index(
+            [("supplier_id", ASCENDING), ("supplier_sku", ASCENDING)],
+            name="uq_supplier_sku", unique=True, background=True,
+            partialFilterExpression={"supplier_sku": {"$type": "string", "$gt": ""}})
+    except Exception as exc:  # noqa: BLE001
+        uq_summary["failed"].append("supplier_items.supplier_sku")
+        logger.error("[indexes] UNIK supplier_items(supplier_id,supplier_sku) GAGAL — jalankan "
+                     "scripts/check_supplier_item_duplicates.py: %s", exc)
     summary["unique"] = uq_summary
     logger.info(
         "[indexes] performance indexes → created=%d existed=%d failed=%d",

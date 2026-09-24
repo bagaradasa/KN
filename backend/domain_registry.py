@@ -858,6 +858,17 @@ def normalize_grade(raw: Any) -> Dict[str, Any]:
     return {"value": None, "legacy": str(raw), "mapped": False}
 
 
+def require_grade(raw: Any, default: str = "A") -> str:
+    """Grade masukan → enum resmi (grade lama dipetakan GRADE_LEGACY_MAP). Kosong → `default`.
+    Tak dikenal → ValueError berpesan siap-tampil (bukan ditebak)."""
+    if not str(raw or "").strip():
+        return default
+    val = normalize_grade(raw)["value"]
+    if not val:
+        raise ValueError(f"Grade '{raw}' tidak dikenal. Pilih salah satu: {', '.join(values_of('grade'))}.")
+    return val
+
+
 def normalize_stage(raw: Any) -> Optional[str]:
     text = str(raw or "").strip().lower().replace(" ", "_")
     aliases = {"greige": "grey", "gray": "grey", "benang": "yarn", "jadi": "finished",
