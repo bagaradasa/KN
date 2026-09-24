@@ -40,7 +40,7 @@ G, R, Y, C, B, X = "\033[92m", "\033[91m", "\033[93m", "\033[96m", "\033[1m", "\
 # lewat aplikasi. Bentuknya terstruktur (doc_type → berkas kandidat), bukan grep
 # bebas: bila salah satu berkas memanggil `doc_refs_service`, hook dianggap ada.
 BIRTH_HOOKS = {
-    "grn": ["routers/purchase_orders.py", "routers/inbound_receiving.py"],
+    "grn": ["routers/purchase_orders.py", "routers/inbound_receiving.py", "services/inbound_complete_service.py"],
     "picking_task": ["services/fulfillment_status.py"],
     "shipment": ["services/shipment_service.py"],
     "tax_invoice": ["services/tax_invoice_service.py"],

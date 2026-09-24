@@ -34,7 +34,7 @@ REVIEWED: dict[tuple[str, str], tuple[str, str]] = {
     ("data_hygiene.py", "/data-hygiene/run"): ("none", "pembersihan master (kota/provinsi) per dokumen: update_one $set nilai ternormalisasi + log append-only + ringkasan run; idempoten (ulangan menulis nilai sama), tidak ada saldo/status bersama"),
     ("settings.py", "/payment-terms/{term_id}"): ("none", "DELETE: satu find_one_and_update payment_terms $set active=False (idempoten) ATAU revert baris khusus PT lewat entity_master_service (satu dokumen); tidak ada koleksi kedua ber-saldo"),
     # ── Audit 2026-09-21 (sesi 3) — 16 endpoint ditinjau; alasan per baris ─────────────
-    ("inbound_scan_label.py", "/inbound/tasks/{task_id}/scan-label"): ("cas", "find_one_and_update wms_tasks berprasyarat status hidup + $inc received_qty/qty_rolls_scanned (bukan $set hasil baca); kalah → roll baru dihapus (kompensasi) + 409"),
+    ("inbound_scan_label.py", "/inbound/tasks/{task_id}/scan-label"): ("service_cas", "find_one_and_update wms_tasks berprasyarat status hidup + $inc received_qty/qty_rolls_scanned (bukan $set hasil baca); kalah → roll baru dihapus (kompensasi) + 409 (GRN Fase 1: dipindah ke layanan)", "receiving_roll_service.attach_roll_to_task"),
     ("inbound_scan_label.py", "/inbound/rolls/{roll_id}/confirm-measure"): ("cas", "find_one_and_update inventory_rolls berprasyarat status receiving + actual_task_qty seperti dibaca → 409; selisih ke wms_tasks via $inc berprasyarat status hidup"),
     ("inbound_scan_label.py", "/inbound/rolls/{roll_id}/putaway"): ("cas", "find_one_and_update inventory_rolls berprasyarat status receiving → 409 bila kalah; bin_id tugas idempoten ($set nilai sama)"),
     ("inbound_scan_label.py", "/inbound/rolls/{roll_id}/tag"): ("none", "satu koleksi: encode_tag menulis rfid_tags + rfid_tag_id roll; tag ganda ditolak oleh rfid_service (EPC unik) — tak ada saldo bersama"),
@@ -51,7 +51,7 @@ REVIEWED: dict[tuple[str, str], tuple[str, str]] = {
     ("marketing.py", "/marketing/accounts/{aid}"): ("none", "PATCH satu dokumen mkt_accounts ($set) — tidak ada koleksi kedua ber-saldo"),
     ("sample_orders.py", "/sample-orders/{order_id}/confirm"): ("cas", "so_transition CAS status $in [approved] → confirmed; create_outbound_tasks_for_order dedupe per order+product; recompute_so_status idempoten"),
     ("outbound_picking.py", "/resolve-escalation"): ("cas", "T-01 Langkah 1: find_one_and_update berprasyarat escalation.status $nin [resolved,resolving] → resolving (2026-09-05)"),
-    ("inbound_receiving.py", "/inbound/tasks/{task_id}/complete"): ("claim", "klaim wms_tasks sebelum roll/mutasi/PO ditulis; tulisan akhir $unset saga_lock"),
+    ("inbound_receiving.py", "/inbound/tasks/{task_id}/complete"): ("service", "klaim wms_tasks sebelum roll/mutasi/PO ditulis; tulisan akhir $unset saga_lock (GRN Fase 1: logika dipindah ke layanan)", "inbound_complete_service.complete_task"),
     ("sales_orders_extra.py", "/sales-orders/{order_id}/cancel"): ("claim", "klaim sales_orders sebelum roll dilepas; so_transition CAS + $unset"),
     ("so_approvals.py", "/approvals/{approval_id}/decide"): ("claim", "klaim sales_orders per entri approval ($elemMatch pending); release di akhir"),
     ("transfers.py", "/transfers/{transfer_id}/approve"): ("claim", "klaim warehouse_transfers sebelum kepemilikan roll + jurnal; finish_set"),

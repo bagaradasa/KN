@@ -60,7 +60,7 @@ E("uom.allow_override", group="stok-satuan", type="bool", default=True, scopes=G
        "yang tercatat di audit.",
   impact="Bila mati, tidak ada jalan keluar saat kiriman memang berbeda — dokumen harus dikoreksi.",
   example="Aktif → selisih 7% bisa lanjut dengan alasan 'kiriman lebih, disetujui manager'",
-  consumers=("services/uom_rules_service.py", "routers/inbound_receiving.py"), risk="high",
+  consumers=("services/uom_rules_service.py", "services/inbound_complete_service.py"), risk="high",
   permission=_UOM_PERM)
 
 E("uom.precision", group="stok-satuan", type="int", default=2, min=0, max=6, step=1,
@@ -93,7 +93,7 @@ E("lot.enforcement_mode", group="lot", type="enum", default="warn",
   impact="Mode 'block' menolak penerimaan tanpa nomor lot — ketertelusuran terjamin tapi "
        "gudang bisa terhambat bila supplier tidak mencantumkan lot.",
   example="block → penerimaan tanpa nomor lot supplier ditolak (400)",
-  consumers=("services/lot_service.py", "routers/inbound_receiving.py"), risk="high",
+  consumers=("services/lot_service.py", "services/inbound_complete_service.py"), risk="high",
   roles=_MANAGER_TOO)
 
 E("lot.require_supplier_lot", group="lot", type="bool", default=True, scopes=G,
@@ -131,7 +131,7 @@ E("lot.status_on_receipt", group="lot", type="enum", default="karantina",
   help="Menentukan apakah barang baru langsung bisa dijual atau menunggu lulus QC.",
   impact="'Langsung tersedia' mempercepat penjualan tetapi melewati kendali mutu.",
   example="karantina → stok belum masuk ATP sampai QC selesai",
-  consumers=("services/lot_service.py", "routers/inbound_receiving.py"),
+  consumers=("services/lot_service.py", "services/inbound_complete_service.py"),
   related=("purchasing.qc_on_receipt",), risk="high",
   roles=_MANAGER_TOO)
 
@@ -186,7 +186,7 @@ E("receiving.line_qty_tolerance_pct", group="penerimaan", type="pct", default=2.
        "yang diterima sebesar persen ini (minimal 0,5 satuan).",
   impact="Makin kecil, petugas harus makin teliti mengukur roll; makin besar, selisih kecil lolos tanpa ditanya.",
   example="Diterima 1.000 m · toleransi 2% → total roll 980–1.020 m masih diterima",
-  consumers=("routers/inbound_receiving.py:complete_inbound_receiving",
+  consumers=("services/inbound_complete_service.py:complete_task",
              "services/receiving_uom_service.py:uom_options"),
   related=("receiving.label_variance_tolerance_percent",), risk="medium")
 

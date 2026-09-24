@@ -426,7 +426,7 @@ E("purchasing.qc_on_receipt", group="pembelian", type="bool", default=True,
        "sebelum bisa dijual.",
   impact="Menambah langkah inspeksi QC pada alur penerimaan; stok belum tersedia sebelum lulus.",
   example="Aktif → 20 roll diterima masuk 'karantina', menunggu Inspeksi QC",
-  consumers=("routers/inbound_receiving.py", "services/qc_service.py"), risk="medium")
+  consumers=("services/inbound_complete_service.py", "services/qc_service.py"), risk="medium")
 
 E("purchasing.allow_item_discount", group="pembelian", type="bool", default=True,
   scopes=("global", "entity"), simulate="pricing",

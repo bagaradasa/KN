@@ -21,7 +21,6 @@ def _base():
 
 BASE = _base()
 ENT = "ent_ksc"
-LABEL_TASK = "wms_e7d730908627"   # PO seed, produk prod_batik_mega (kode supplier CBN-MEGA-PREM), 250 yd
 
 
 def _session(email):
@@ -83,6 +82,12 @@ def test_advance_rejects_inbound(admin, synth_task, mdb, status):
 
 # 0.2 ─ receiving.block_over_remaining (lewat value_of) mengubah perilaku scan label
 def test_block_over_remaining_changes_scan_label(admin, wh, mdb):
+    t = mdb.wms_tasks.find_one({"flow_type": "inbound", "product_id": "prod_batik_mega", "status": "waiting_goods",
+                                "po_id": {"$gt": ""}, "entity_id": ENT}, {"_id": 0, "id": 1})
+    if not t:
+        pytest.skip("seed tak punya tugas PO prod_batik_mega waiting_goods")
+    LABEL_TASK = t["id"]  # noqa: N806 — tugas PO seed dengan kode supplier CBN-MEGA-PREM
+    original = mdb.wms_tasks.find_one({"id": LABEL_TASK})
     raw = f"CBN-MEGA-PREM|DL-GRN0|GRN0-{uuid.uuid4().hex[:5]}|500"
     try:
         _set_cfg(admin, "receiving.block_over_remaining", True)
@@ -95,6 +100,7 @@ def test_block_over_remaining_changes_scan_label(admin, wh, mdb):
         assert wh.delete(f"{BASE}/inbound/rolls/{rid}/scan", timeout=30).status_code == 200
     finally:
         _set_cfg(admin, "receiving.block_over_remaining", True)
+        mdb.wms_tasks.replace_one({"id": LABEL_TASK}, original)   # scan/hapus roll mengubah status & log tugas
 
 
 # 0.3 ─ toleransi Σ roll dari receiving.line_qty_tolerance_pct
