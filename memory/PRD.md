@@ -343,3 +343,23 @@ referensi komponen baru → React unmount/remount `<input>` → fokus hilang. Po
 - Backend: `color_service.color_usage/is_customer_color/list_customer_colors`, `GET /api/color-library?scope=internal|customer` (+ `is_customer_color` per baris), `GET /api/color-library/customer-colors` (per pelanggan yang terlihat di badan usaha aktif). FE: `CustomerColorsTab.jsx`, KPI Warna Pelanggan, field "Milik pelanggan (eksklusif)" di form, lencana di PantoneFinder.
 - Data demo: `scripts/seed_customer_colors_demo.py` (idempoten) — KN-SJT-01 milik Toko Kain Sejahtera; produk eksklusif Butik Bali Indah SGK-BLI-TSK-01 (KN-GRN-03) & SGK-BLI-UNG-01 (KN-PUR-01) lewat alur labdip → ACC.
 - Uji: iteration_62 backend 11/11, frontend 100%.
+
+## Warna Pelanggan lanjutan (2026-09-24, repo mkaksjbd/KN)
+Problem: lanjutkan 4 fitur — Warna di Profil Pelanggan · Kunci Warna Eksklusif (diblokir, butuh persetujuan manajer) ·
+Kartu Warna PDF (swatch, kode, versi supplier + logo/nama badan usaha) · Penanda Warna Otomatis saat labdip ACC.
+- Backend: `services/color_lock_service.py` (assert_can_use, permintaan izin di `color_library.use_requests[]`, approve/reject/revoke,
+  notifikasi manajer & pemohon, auto_mark_owner), `services/color_card_pdf.py` (WeasyPrint + branding badan usaha aktif),
+  endpoint baru di `routers/color_library.py`; kunci dipasang di `product_variant_service.save_product` (semua jalur produk),
+  `rnd_spec_service` (buat/ubah spesifikasi) & `rnd_sample_service.decide_sample`. Izin baru `color.approve` (admin+manager).
+- Penanda otomatis: sample ber-`exclusive_customer_id` diputus → warna sistem KN belum bertuan & tak dipakai produk umum/pelanggan lain
+  menjadi milik pelanggan (`exclusive_source.kind=auto`). Ini juga menutup catatan lama "Pantone ikut pindah" — hanya warna KN yang ditandai.
+- Frontend: CustomerColorsTab (lencana Terkunci/Otomatis, tombol Kartu Warna PDF, minta izin pakai, daftar izin), ColorUseRequestModal,
+  ColorUseRequestsPanel, CRM `CustomerColorsSection` di Customer 360.
+- Seed: `scripts/seed_customer_colors_demo.py` kini + warna baru KN-BLI-EMS-01 Emas Pura (SGK-BLI-EMS-01) → ditandai otomatis.
+- Gate: pintu approve/reject izin warna didaftarkan di DOOR_EXEMPT (antrean = panel Warna Pelanggan + notifikasi), belum masuk KPI Pusat Persetujuan.
+- Uji: backend 18/18, frontend ~90% (role sales tidak punya menu Pustaka Warna — desain peran lama).
+
+### Backlog
+- P1: antrean izin warna masuk Pusat Persetujuan/KPI beranda (butuh koleksi sendiri ber-entity_id).
+- P1: tombol "Minta izin" langsung dari pesan tolak di form Produk/Spesifikasi.
+- P2: akses sales ke tab Warna Pelanggan (read + minta izin) bila diinginkan.
