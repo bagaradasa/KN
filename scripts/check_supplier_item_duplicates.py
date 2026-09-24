@@ -7,7 +7,10 @@ agar indeks `uq_supplier_sku` lahir).
 import os
 import sys
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
+
+load_dotenv("/app/backend/.env")
 
 db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
 rows = list(db.supplier_items.aggregate([

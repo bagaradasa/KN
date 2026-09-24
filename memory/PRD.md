@@ -363,3 +363,18 @@ Kartu Warna PDF (swatch, kode, versi supplier + logo/nama badan usaha) · Penand
 - P1: antrean izin warna masuk Pusat Persetujuan/KPI beranda (butuh koleksi sendiri ber-entity_id).
 - P1: tombol "Minta izin" langsung dari pesan tolak di form Produk/Spesifikasi.
 - P2: akses sales ke tab Warna Pelanggan (read + minta izin) bila diinginkan.
+
+## GRN + OCR Surat Jalan — Fase 0 selesai (2026-09-24)
+Spesifikasi: `memory/grn_ocr/Prompt_Implementasi_GRN_OCR_SJ.md` (+ `prompt_sj_v2.txt`, `schema_sj_v2.json`). Aturan: satu fase per sesi.
+Keputusan user: Fase 0 dulu · kunci OpenAI menyusul (Fase 4) · keputusan klien §7 = bawaan dokumen · foto contoh SJ diunggah saat Fase 4.
+- 0.1 `advance` menolak tugas inbound (409 USE_RECEIVING_FLOW); tombol "Lanjutkan Tahap" nonaktif untuk inbound.
+- 0.2 `receiving.*` di scan label dibaca lewat `value_of`.
+- 0.3 Kunci baru `receiving.line_qty_tolerance_pct` (2%) → complete() + uom-options → GRCatchWeightModal.
+- 0.4 Grade SSOT (`domain_registry.require_grade`): A+→A, C→BS, tak dikenal 400; semua dropdown grade via useDomainEnums.
+- 0.5 Mobile: qty kosong, Terima juga untuk waiting_goods.
+- 0.6 Override over-receipt/selisih konversi hanya pemegang `wms.approve`, alasan tercatat; UI askReason.
+- 0.7 lookup kode supplier hanya aktif; indeks unik `uq_supplier_sku`; skrip `scripts/check_supplier_item_duplicates.py`.
+- 0.8 KN-B15 juga di PR→PO & amandemen (`services/po_line_guard.py`).
+- 0.9 Kamera mode manual mengisi Roll ID.
+- Uji: `backend/tests/test_grn_phase0.py` 14/14; gate penuh HIJAU.
+### Berikutnya: Fase 1 (refactor tanpa perubahan perilaku: test karakterisasi → `inbound_complete_service.complete_task`, `receiving_roll_service`).
